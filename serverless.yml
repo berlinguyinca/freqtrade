@@ -1,4 +1,4 @@
-service: stasis
+service: freq
 
 frameworkVersion: ">=1.1.0 <2.0.0"
 
@@ -50,15 +50,9 @@ custom:
   ###
   # custom domain management
   ###
-
-  domains:
-    prod: prod.isaac.international
-    test: test.isaac.international
-    dev:  dev.isaac.international
-
   customDomain:
-    basePath: "freq"
-    domainName: ${self:custom.domains.${self:custom.stage}}
+    basePath: "${self:custom.stage}"
+    domainName: freq.isaac.international
     stage: "${self:custom.stage}"
     createRoute53Record: true
 
@@ -80,6 +74,10 @@ package:
   exclude:
      - node_modules/**
      - freqtrade/tests/**
+     - '**/*.pyc'
+     - venv
+     - doc
+     - '**/*.html'  
        
 ############################################################################################
 # this section defines all lambda function and triggers
