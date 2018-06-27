@@ -96,6 +96,12 @@ class FreqtradeBot(object):
         if state != old_state:
             self.rpc.send_msg(f'*Status:* `{state.name.lower()}`')
             logger.info('Changing state to: %s', state.name)
+            if (('use_book_order' in self.config['bid_strategy'] and \
+            self.config['bid_strategy'].get('use_book_order', False)) or \
+            ('use_book_order' in self.config['ask_strategy'] and \
+            self.config['ask_strategy'].get('use_book_order', False))) and \
+            self.config['dry_run'] and state == State.RUNNING:
+                self.rpc.send_msg('*Warning:* `Order book enabled in dry run. Results will be misleading`')
 
         if state == State.STOPPED:
             time.sleep(1)
@@ -245,7 +251,7 @@ class FreqtradeBot(object):
         :return: float: Price
         """
         ticker = exchange.get_ticker(pair)
-        logger.info('ticker data %s', ticker)
+        logger.debug('ticker data %s', ticker)
 
         if ticker['ask'] < ticker['last']:
             ticker_rate = ticker['ask']
@@ -258,7 +264,7 @@ class FreqtradeBot(object):
         if 'use_book_order' in self.config['bid_strategy'] and self.config['bid_strategy'].get('use_book_order', False):
             logger.info('Getting price from Order Book')
             orderBook_top = self.config.get('bid_strategy', {}).get('book_order_top', 1)
-            orderBook = exchange.get_order_book(pair, orderBook_top)
+            orderBook = exchange.get_order_book(pair, orderBook_top)            
             # top 1 = index 0
             orderBook_rate = orderBook['bids'][orderBook_top - 1][0]
             orderBook_rate = orderBook_rate + 0.00000001
@@ -466,15 +472,13 @@ with limit `{buy_limit:.8f} ({stake_amount:.6f} \
 
         is_set_fullfilled_at_roi = self.config.get('experimental', {}).get('sell_fullfilled_at_roi', False)
         if is_set_fullfilled_at_roi:
-            sell_rate = self.analyze.get_roi_rate(trade)
-            logger.info('trying to selling at roi rate %0.8f', sell_rate)
+            sell_rate = self.analyze.get_roi_rate(trade, sell_rate)
 
         if 'ask_strategy' in self.config and self.config['ask_strategy'].get('use_book_order', False):
             logger.info('Using order book for selling...')
-
             # logger.debug('Order book %s',orderBook)
-            orderBook_min = self.config['ask_strategy']['book_order_min']
-            orderBook_max = self.config['ask_strategy']['book_order_max']
+            orderBook_min = self.config['ask_strategy'].get('book_order_min', 1)
+            orderBook_max = self.config['ask_strategy'].get('book_order_max', 1)
 
             orderBook = exchange.get_order_book(trade.pair, orderBook_max)
 
@@ -489,6 +493,7 @@ with limit `{buy_limit:.8f} ({stake_amount:.6f} \
 
                 if self.check_sell(trade, sell_rate, buy, sell):
                     return True
+                    break
         else:
             logger.info('checking sell')
             if self.check_sell(trade, sell_rate, buy, sell):

@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Dict, List, Tuple
 
 import arrow
+import pandas as pd
 from pandas import DataFrame, to_datetime
 
 from freqtrade import constants
@@ -62,7 +63,7 @@ class Analyze(object):
             'close': 'last',
             'volume': 'max',
         })
-        frame.drop(frame.tail(1).index, inplace=True)  # eliminate partial candle
+
         return frame
 
     def populate_indicators(self, dataframe: DataFrame, pair: str = None) -> DataFrame:
@@ -104,8 +105,11 @@ class Analyze(object):
         add several TA indicators and buy signal to it
         :return DataFrame with ticker data and indicator data
         """
-
         dataframe = self.parse_ticker_dataframe(ticker_history)
+        # eliminate partials for known exchanges that sends partial candles
+        if self.config['exchange']['name'] in ['binance']:
+            logger.info('eliminating partial candle')
+            dataframe.drop(dataframe.tail(1).index, inplace=True)  # eliminate partial candle
         dataframe = self.populate_indicators(dataframe, pair)
         dataframe = self.populate_buy_trend(dataframe, pair)
         dataframe = self.populate_sell_trend(dataframe, pair)
@@ -146,11 +150,11 @@ class Analyze(object):
 
         latest = dataframe.iloc[-1]
 
-
         # Check if dataframe is out of date
         signal_date = arrow.get(latest['date'])
         interval_minutes = constants.TICKER_INTERVAL_MINUTES[interval]
         if signal_date < (arrow.utcnow() - timedelta(minutes=(interval_minutes + 5))):
+            logger.debug('signal %s vs arrow now %s', signal_date, arrow.utcnow())
             logger.warning(
                 'Outdated history for pair %s. Last tick is %s minutes old',
                 pair,
@@ -253,10 +257,43 @@ class Analyze(object):
         import math
         return math.floor(f * 10 ** n) / 10 ** n
 
-    def get_roi_rate(self, trade: Trade) -> float:
+    def get_roi_rate(self, trade: Trade, sell_rate: float) -> float:
+        """
+        Calculates sell rate based on roi
+        """
         current_time = datetime.utcnow()
         time_diff = (current_time.timestamp() - trade.open_date.timestamp()) / 60
         for duration, threshold in self.strategy.minimal_roi.items():
             if time_diff > duration:
-                roi_rate = (trade.open_rate * (1 + threshold)) * (1+(2.1*get_fee(trade.pair)))
-                return self.trunc_num(roi_rate, 8)
+                roi_rate = self.trunc_num((trade.open_rate * (1 + threshold)) * (1+(2.1*get_fee(trade.pair))), 8)
+                logger.info('trying to selling at roi rate %0.8f', roi_rate)
+                return roi_rate
+                break
+        return sell_rate
+
+    def order_book_to_dataframe(data: list) -> DataFrame:
+        """
+        Gets order book list, returns dataframe with below format
+        -------------------------------------------------------------------
+         bids       b_size       a_sum       asks       a_size       a_sum
+        -------------------------------------------------------------------
+        """
+        cols = ['bids', 'b_size']
+        bids_frame = DataFrame(data['bids'], columns=cols)
+        # add cumulative sum column
+        bids_frame['b_sum'] = bids_frame['b_size'].cumsum()
+        cols2 = ['asks', 'a_size']
+        asks_frame = DataFrame(data['asks'], columns=cols2)
+        # add cumulative sum column
+        asks_frame['a_sum'] = asks_frame['a_size'].cumsum()
+
+        frame = pd.concat([bids_frame['b_sum'], bids_frame['b_size'], bids_frame['bids'], \
+            asks_frame['asks'], asks_frame['a_size'], asks_frame['a_sum']], axis=1, \
+            keys=['b_sum', 'b_size', 'bids', 'asks', 'a_size', 'a_sum'])
+
+        return frame
+
+    def order_book_dom() -> DataFrame:
+        # https://stackoverflow.com/questions/36835793/pandas-group-by-consecutive-ranges
+        return DataFrame
+
