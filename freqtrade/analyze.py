@@ -2,7 +2,7 @@
 Functions to analyze ticker data with indicators and produce buy and sell signals
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Tuple
 
@@ -154,7 +154,7 @@ class Analyze(object):
         # Check if dataframe is out of date
         signal_date = arrow.get(latest['date'])
         interval_minutes = constants.TICKER_INTERVAL_MINUTES[interval]
-        if signal_date < (arrow.utcnow() - timedelta(minutes=(interval_minutes + 5))):
+        if signal_date < (arrow.utcnow().shift(minutes=-(interval_minutes * 2 + 5))):
             logger.warning(
                 'Outdated history for pair %s. Last tick is %s minutes old',
                 pair,
@@ -179,7 +179,8 @@ class Analyze(object):
         :return: True if trade should be sold, False otherwise
         """
         current_profit = trade.calc_profit_percent(rate)
-        if self.stop_loss_reached(current_rate=rate, trade=trade, current_time=date):
+        if self.stop_loss_reached(current_rate=rate, trade=trade, current_time=date,
+                                  current_profit=current_profit):
             return True
 
         experimental = self.config.get('experimental', {})
@@ -203,13 +204,13 @@ class Analyze(object):
 
         return False
 
-    def stop_loss_reached(self, current_rate: float, trade: Trade, current_time: datetime) -> bool:
+    def stop_loss_reached(self, current_rate: float, trade: Trade, current_time: datetime,
+                          current_profit: float) -> bool:
         """
         Based on current profit of the trade and configured (trailing) stoploss,
         decides to sell or not
         """
 
-        current_profit = trade.calc_profit_percent(current_rate)
         trailing_stop = self.config.get('trailing_stop', False)
 
         trade.adjust_stop_loss(trade.open_rate, self.strategy.stoploss, initial=True)
