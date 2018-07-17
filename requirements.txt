@@ -1,4 +1,4 @@
-ccxt==1.15.27
+ccxt==1.15.42
 SQLAlchemy==1.2.9
 python-telegram-bot==10.1.0
 arrow==0.12.1
@@ -22,4 +22,11 @@ coinmarketcap==5.0.3
 scikit-optimize==0.5.2
 
 # Required for plotting data
-#plotly==2.7.0
+#plotly==3.0.0
+
+# find first, C search in arrays
+py_find_1st==1.1.1
+
+#Load ticker files 30% faster
+ujson==1.35
+profilehooks
