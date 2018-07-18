@@ -96,7 +96,7 @@ class Backtesting(object):
         self.np_sco: int = self.np_close  # stops_calculated_on - Should be stop, FT uses close
 
         self.use_backslap = True  # Enable backslap - if false Orginal code is executed.
-        self.debug = True  # Main debug enable, very print heavy, enable 2 loops recommended
+        self.debug = False # Main debug enable, very print heavy, enable 2 loops recommended
         self.debug_timing = False  # Stages within Backslap
         self.debug_2loops = False  # Limit each pair to two loops, useful when debugging
         self.debug_vector = False  # Debug vector calcs
@@ -291,15 +291,18 @@ class Backtesting(object):
             # Switch List of Trade Dicts (bslap_results) to Dataframe
             # Fill missing, calculable columns, profit, duration , abs etc.
             bslap_results_df = DataFrame(bslap_results)
-            bslap_results_df['open_time'] = to_datetime(bslap_results_df['open_time'])
-            bslap_results_df['close_time'] = to_datetime(bslap_results_df['close_time'])
 
-            ### don't use this, itll drop exit type field
-            # bslap_results_df = DataFrame(bslap_results, columns=BacktestResult._fields)
+            if len(bslap_results_df) > 0:
 
-            bslap_results_df = self.vector_fill_results_table(bslap_results_df)
+                bslap_results_df['open_time'] = to_datetime(bslap_results_df['open_time'])
+                bslap_results_df['close_time'] = to_datetime(bslap_results_df['close_time'])
 
-            return bslap_results_df
+                ### don't use this, itll drop exit type field
+                # bslap_results_df = DataFrame(bslap_results, columns=BacktestResult._fields)
+
+                bslap_results_df = self.vector_fill_results_table(bslap_results_df)
+
+                return bslap_results_df
 
         else:  # use Original Back test code
             ########################## Original BT loop
