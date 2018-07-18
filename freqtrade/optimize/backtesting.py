@@ -54,6 +54,7 @@ class Backtesting(object):
     backtesting = Backtesting(config)
     backtesting.start()
     """
+
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
         self.analyze = Analyze(self.config)
@@ -89,22 +90,20 @@ class Backtesting(object):
         self.np_stop: int = 6
         self.np_bto: int = self.np_close  # buys_triggered_on - should be close
         self.np_bco: int = self.np_open  # buys calculated on - open of the next candle.
-
+        # self.np_sto: int = self.np_low  # stops_triggered_on - Should be low, FT uses close
+        # self.np_sco: int = self.np_stop  # stops_calculated_on - Should be stop, FT uses close
         self.np_sto: int = self.np_close  # stops_triggered_on - Should be low, FT uses close
         self.np_sco: int = self.np_close  # stops_calculated_on - Should be stop, FT uses close
 
-        #self.np_sto: int = self.np_low  # stops_triggered_on - Should be low, FT uses close
-        #self.np_sco: int = self.np_stop  # stops_calculated_on - Should be stop, FT uses close
-        self.use_backslap = True             # Enable backslap - if false Orginal code is executed.
-        self.debug = False                   # Main debug enable, very print heavy, enable 2 loops recommended
-        self.debug_timing = False            # Stages within Backslap
-        self.debug_2loops = False            # Limit each pair to two loops, useful when debugging
-        self.debug_vector = False            # Debug vector calcs
+        self.use_backslap = True  # Enable backslap - if false Orginal code is executed.
+        self.debug = True  # Main debug enable, very print heavy, enable 2 loops recommended
+        self.debug_timing = False  # Stages within Backslap
+        self.debug_2loops = False  # Limit each pair to two loops, useful when debugging
+        self.debug_vector = False  # Debug vector calcs
         self.debug_timing_main_loop = False  # print overall timing per pair - works in Backtest and Backslap
 
-        self.backslap_show_trades = False     # prints trades in addition to summary report
-        self.backslap_save_trades = True      # saves trades as a pretty table to backslap.txt
-
+        self.backslap_show_trades = False  # prints trades in addition to summary report
+        self.backslap_save_trades = True  # saves trades as a pretty table to backslap.txt
 
     @staticmethod
     def get_timeframe(data: Dict[str, DataFrame]) -> Tuple[arrow.Arrow, arrow.Arrow]:
@@ -118,7 +117,7 @@ class Backtesting(object):
             for frame in data.values()
         ]
         return min(timeframe, key=operator.itemgetter(0))[0], \
-            max(timeframe, key=operator.itemgetter(1))[1]
+               max(timeframe, key=operator.itemgetter(1))[1]
 
     def _generate_text_table(self, data: Dict[str, Dict], results: DataFrame) -> str:
         """
@@ -192,7 +191,6 @@ class Backtesting(object):
             buy_signal = sell_row.buy
             if self.analyze.should_sell(trade, sell_row.open, sell_row.date, buy_signal,
                                         sell_row.sell):
-
                 return BacktestResult(pair=pair,
                                       profit_percent=trade.calc_profit_percent(rate=sell_row.open),
                                       profit_abs=trade.calc_profit(rate=sell_row.open),
@@ -232,7 +230,6 @@ class Backtesting(object):
     def f(self, st):
         return (timeit.default_timer() - st)
 
-
     def backtest(self, args: Dict) -> DataFrame:
         """
         Implements backtesting functionality
@@ -248,56 +245,11 @@ class Backtesting(object):
             realistic: do we try to simulate realistic trades? (default: True)
         :return: DataFrame
         """
-<<<<<<< HEAD
-        headers = ['date', 'buy', 'open', 'close', 'sell']
-        processed = args['processed']
-        max_open_trades = args.get('max_open_trades', 0)
-        realistic = args.get('realistic', False)
-        trades = []
-        trade_count_lock: Dict = {}
-        for pair, pair_data in processed.items():
-            pair_data['buy'], pair_data['sell'] = 0, 0  # cleanup from previous run
-
-            ticker_data = self.populate_sell_trend(
-                self.populate_buy_trend(pair_data, pair), pair)[headers].copy()
-
-            # to avoid using data from future, we buy/sell with signal from previous candle
-            ticker_data.loc[:, 'buy'] = ticker_data['buy'].shift(1)
-            ticker_data.loc[:, 'sell'] = ticker_data['sell'].shift(1)
-
-            ticker_data.drop(ticker_data.head(1).index, inplace=True)
-
-            # Convert from Pandas to list for performance reasons
-            # (Looping Pandas is slow.)
-            ticker = [x for x in ticker_data.itertuples()]
-
-            lock_pair_until = None
-            for index, row in enumerate(ticker):
-                if row.buy == 0 or row.sell == 1:
-                    continue  # skip rows where no buy signal or that would immediately sell off
-
-                if realistic:
-                    if lock_pair_until is not None and row.date <= lock_pair_until:
-                        continue
-                if max_open_trades > 0:
-                    # Check if max_open_trades has already been reached for the given date
-                    if not trade_count_lock.get(row.date, 0) < max_open_trades:
-                        continue
-
-                    trade_count_lock[row.date] = trade_count_lock.get(row.date, 0) + 1
-
-                trade_entry = self._get_sell_trade_entry(pair, row, ticker[index + 1:],
-                                                         trade_count_lock, args)
-
-                if trade_entry:
-                    lock_pair_until = trade_entry.close_time
-                    trades.append(trade_entry)
-=======
 
         use_backslap = self.use_backslap
         debug_timing = self.debug_timing_main_loop
 
-        if use_backslap: # Use Back Slap code
+        if use_backslap:  # Use Back Slap code
 
             headers = ['date', 'buy', 'open', 'close', 'sell', 'high', 'low']
             processed = args['processed']
@@ -309,15 +261,15 @@ class Backtesting(object):
             ########################### Call out BSlap Loop instead of Original BT code
             bslap_results: list = []
             for pair, pair_data in processed.items():
-                if debug_timing: # Start timer
+                if debug_timing:  # Start timer
                     fl = self.s()
 
                 ticker_data = self.populate_sell_trend(
-                        self.populate_buy_trend(pair_data))[headers].copy()
+                    self.populate_buy_trend(pair_data, pair), pair)[headers].copy()
 
-                if debug_timing: # print time taken
+                if debug_timing:  # print time taken
                     flt = self.f(fl)
-                    #print("populate_buy_trend:", pair, round(flt, 10))
+                    # print("populate_buy_trend:", pair, round(flt, 10))
                     st = self.s()
 
                 # #dump same DFs to disk for offline testing in scratch
@@ -326,16 +278,15 @@ class Backtesting(object):
                 # csv="/Users/creslin/PycharmProjects/freqtrade_new/frames/" + csv
                 # ticker_data.to_csv(csv, sep='\t', encoding='utf-8')
 
-                #call bslap - results are a list of dicts
+                # call bslap - results are a list of dicts
                 bslap_pair_results = self.backslap_pair(ticker_data, pair)
                 last_bslap_results = bslap_results
                 bslap_results = last_bslap_results + bslap_pair_results
 
                 if debug_timing:  # print time taken
                     tt = self.f(st)
-                    print("Time to  BackSlap :", pair, round(tt,10))
+                    print("Time to  BackSlap :", pair, round(tt, 10))
                     print("-----------------------")
-
 
             # Switch List of Trade Dicts (bslap_results) to Dataframe
             # Fill missing, calculable columns, profit, duration , abs etc.
@@ -350,7 +301,7 @@ class Backtesting(object):
 
             return bslap_results_df
 
-        else: # use Original Back test code
+        else:  # use Original Back test code
             ########################## Original BT loop
 
             headers = ['date', 'buy', 'open', 'close', 'sell']
@@ -361,7 +312,7 @@ class Backtesting(object):
             trade_count_lock: Dict = {}
 
             for pair, pair_data in processed.items():
-                if debug_timing: # Start timer
+                if debug_timing:  # Start timer
                     fl = self.s()
 
                 pair_data['buy'], pair_data['sell'] = 0, 0  # cleanup from previous run
@@ -375,9 +326,9 @@ class Backtesting(object):
 
                 ticker_data.drop(ticker_data.head(1).index, inplace=True)
 
-                if debug_timing: # print time taken
+                if debug_timing:  # print time taken
                     flt = self.f(fl)
-                    #print("populate_buy_trend:", pair, round(flt, 10))
+                    # print("populate_buy_trend:", pair, round(flt, 10))
                     st = self.s()
 
                 # Convert from Pandas to list for performance reasons
@@ -401,7 +352,6 @@ class Backtesting(object):
 
                     trade_entry = self._get_sell_trade_entry(pair, row, ticker[index + 1:],
                                                              trade_count_lock, args)
-
 
                     if trade_entry:
                         lock_pair_until = trade_entry.close_time
@@ -439,7 +389,7 @@ class Backtesting(object):
         # stake and fees
         # stake = 0.015
         # 0.05% is 0.0005
-        #fee = 0.001
+        # fee = 0.001
 
         stake = self.config.get('stake_amount')
         fee = self.fee
@@ -479,7 +429,8 @@ class Backtesting(object):
         if debug:
             print("\n")
             print(bslap_results_df[
-                      ['buy_sum', 'buy_fee', 'buy_spend', 'sell_sum','sell_fee', 'sell_take', 'profit_percent', 'profit_abs', 'exit_type']])
+                      ['buy_sum', 'buy_fee', 'buy_spend', 'sell_sum', 'sell_fee', 'sell_take', 'profit_percent',
+                       'profit_abs', 'exit_type']])
 
         return bslap_results_df
 
@@ -492,10 +443,12 @@ class Backtesting(object):
          t_exit_ind is the index the last trade exited on
          or 0 if first time around this loop.
          """
+
         # Timers, to be called if in debug
         def s():
             st = timeit.default_timer()
             return st
+
         def f(st):
             return (timeit.default_timer() - st)
 
@@ -515,8 +468,8 @@ class Backtesting(object):
         if t_open_ind != -1:  # send back the -1 if no buys found. otherwise update index
             t_open_ind = t_open_ind + t_exit_ind  # Align numpy index
 
-        if t_open_ind == np_buy_arr_len -1 : # If buy found on last candle ignore, there is no OPEN in next to use
-            t_open_ind = -1 # -1 ends the loop
+        if t_open_ind == np_buy_arr_len - 1:  # If buy found on last candle ignore, there is no OPEN in next to use
+            t_open_ind = -1  # -1 ends the loop
 
         return t_open_ind
 
@@ -550,11 +503,14 @@ class Backtesting(object):
             pd.set_option('display.width', 1000)
             pd.set_option('max_colwidth', 40)
             pd.set_option('precision', 12)
+
         def s():
             st = timeit.default_timer()
             return st
+
         def f(st):
             return (timeit.default_timer() - st)
+
         #### backslap config
         '''
         Numpy arrays are used for 100x speed up
@@ -594,7 +550,7 @@ class Backtesting(object):
 
         pair: str = pair
 
-        #ticker_data: DataFrame = ticker_dfs[t_file]
+        # ticker_data: DataFrame = ticker_dfs[t_file]
         bslap: DataFrame = ticker_data
 
         # Build a single dimension numpy array from "buy" index for faster search
@@ -630,7 +586,8 @@ class Backtesting(object):
                 print("-- T_exit_Ind - Numpy Index is", t_exit_ind, " ----------------------- Loop", loop, pair)
             if debug_2loops:
                 if loop == 3:
-                    print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Loop debug max met - breaking")
+                    print(
+                        "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Loop debug max met - breaking")
                     break
             '''
              Dev phases
@@ -737,7 +694,8 @@ class Backtesting(object):
                                                 utf1st.cmp_smaller)
 
                 if debug:
-                    print("\n(3) numpy debug\nNext view index with STO (stop trigger on) under Stop-Loss is", np_t_stop_ind,
+                    print("\n(3) numpy debug\nNext view index with STO (stop trigger on) under Stop-Loss is",
+                          np_t_stop_ind,
                           ". STO is using field", np_sto,
                           "\nFrom key: buy 0 - open 1 - close 2 - sell 3 - high 4 - low 5\n")
 
@@ -840,7 +798,6 @@ class Backtesting(object):
                               "At view index", np_t_sell_ind, ". Ticker data exit index is", t_exit_ind)
 
                 # No stop or buy left in view - set t_exit_last -1 to handle gracefully
->>>>>>> backtesting
                 else:
                     t_exit_last: int = -1  # Signal loop to exit, no buys or sells found.
                     t_exit_type = "No Exit"
@@ -1107,23 +1064,26 @@ class Backtesting(object):
                     results
                 )
             )
-            #optional print trades
+            # optional print trades
             if self.backslap_show_trades:
                 TradesFrame = results.filter(['open_time', 'pair', 'exit_type', 'profit_percent', 'profit_abs',
                                               'buy_spend', 'sell_take', 'trade_duration', 'close_time'], axis=1)
+
                 def to_fwf(df, fname):
                     content = tabulate(df.values.tolist(), list(df.columns), floatfmt=".8f", tablefmt='psql')
                     print(content)
 
                 DataFrame.to_fwf = to_fwf(TradesFrame, "backslap.txt")
 
-            #optional save trades
+            # optional save trades
             if self.backslap_save_trades:
                 TradesFrame = results.filter(['open_time', 'pair', 'exit_type', 'profit_percent', 'profit_abs',
                                               'buy_spend', 'sell_take', 'trade_duration', 'close_time'], axis=1)
+
                 def to_fwf(df, fname):
                     content = tabulate(df.values.tolist(), list(df.columns), floatfmt=".8f", tablefmt='psql')
                     open(fname, "w").write(content)
+
                 DataFrame.to_fwf = to_fwf(TradesFrame, "backslap.txt")
 
         else:
