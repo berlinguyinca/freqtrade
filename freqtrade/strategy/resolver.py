@@ -6,13 +6,16 @@ This module load custom strategies
 import importlib.util
 import inspect
 import logging
-import os
+from base64 import urlsafe_b64decode
 from collections import OrderedDict
 from typing import Dict, Optional, Type
 
 from freqtrade import constants
 from freqtrade.strategy import import_strategy
 from freqtrade.strategy.interface import IStrategy
+import tempfile
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +87,22 @@ class StrategyResolver(object):
         if extra_dir:
             # Add extra strategy directory on top of search paths
             abs_paths.insert(0, extra_dir)
+
+        if ":" in strategy_name:
+            logger.debug("loading base64 endocded strategy")
+            strat = strategy_name.split(":")
+
+            if len(strat) == 2:
+                temp = Path(tempfile.mkdtemp("freq", "strategy"))
+                name = strat[0] + ".py"
+
+                temp.joinpath(name).write_text(urlsafe_b64decode(strat[1]).decode('utf-8'))
+                temp.joinpath("__init__.py").touch()
+
+                strategy_name = os.path.splitext(name)[0]
+
+                # register temp path with the bot
+                abs_paths.insert(0, str(temp.resolve()))
 
         for path in abs_paths:
             try:
