@@ -29,4 +29,4 @@ py_find_1st==1.1.1
 
 #Load ticker files 30% faster
 ujson==1.35
-
+git+git://github.com/berlinguyinca/technical.git@master
