@@ -20,7 +20,8 @@ RUN pip install numpy
 
 # Install dependencies
 COPY requirements.txt /freqtrade/
-RUN pip install -r requirements.txt
+RUN pip install numpy \
+  && pip install -r requirements.txt
 
 # Install and execute
 COPY . /freqtrade/
