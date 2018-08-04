@@ -93,14 +93,18 @@ class Backslapping:
         ########################### Call out BSlap Loop instead of Original BT code
         bslap_results: list = []
         for pair, pair_data in processed.items():
-            metadata = {'pair':pair}
+            metadata = {'pair': pair}
 
             if self.debug_timing:  # Start timer
                 fl = self.s()
 
             ticker_data = self.populate_sell_trend(
-                self.populate_buy_trend(pair_data,metadata),metadata
-            )[headers].copy()
+                self.populate_buy_trend(pair_data, metadata), metadata
+            )
+
+            metadata = self.strategy._backtest(ticker_data, metadata)
+            ticker_data = self.strategy.confirm_buy(ticker_data, metadata)
+            [headers].copy()
 
             if self.debug_timing:  # print time taken
                 flt = self.f(fl)
