@@ -354,17 +354,23 @@ class IStrategy(ABC):
         logger.info("invoking backtest in strategy for {}".format(metadata))
         result = DataFrame()
         if 'pair' in metadata:
-            if self.enable_pre_test() == BacktestMode.BACKSLAP:
+            if self.get_pretest_mode() == BacktestMode.BACKSLAP:
                 from freqtrade.optimize.backslapping import Backslapping
                 backslap = Backslapping(self.config)
                 dataframe = dataframe.copy()
+
+                # need to cut down on the code completion
                 result = backslap.backslap_pair(dataframe,
                                                 metadata['pair'])
+                result = DataFrame(result)
 
-        metadata.update({self.enable_pre_test(): result})
+                if len(result) > 0:
+                    result = backslap.vector_fill_results_table(result, metadata['pair'])
+
+        metadata.update({self.get_pretest_mode(): result})
         return metadata
 
-    def enable_pre_test(self) -> BacktestMode:
+    def get_pretest_mode(self) -> BacktestMode:
         """
         if this is enabled, we will backtest the data, before we generated a buy result
 
