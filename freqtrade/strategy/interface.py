@@ -19,6 +19,14 @@ from freqtrade.persistence import Trade
 logger = logging.getLogger(__name__)
 
 
+class BacktestMode(Enum):
+    """
+    Enum to distinguish between different backtesting modes
+    """
+    BACKSLAP = "backslap"
+    NONE = "none"
+
+
 class SignalType(Enum):
     """
     Enum to distinguish between buy and sell signals
@@ -114,8 +122,21 @@ class IStrategy(ABC):
         """
         dataframe = parse_ticker_dataframe(ticker_history)
         dataframe = self.advise_indicators(dataframe, metadata)
+
         dataframe = self.advise_buy(dataframe, metadata)
         dataframe = self.advise_sell(dataframe, metadata)
+        metadata = self._backtest(dataframe, metadata)
+        dataframe = self.confirm_buy(dataframe, metadata)
+        return dataframe
+
+    def confirm_buy(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        """
+        and advanced strategy feature confirming a buy, depending on additionally injected metadata
+
+        :param dataframe:
+        :param metadata:
+        :return:
+        """
         return dataframe
 
     def get_signal(self, pair: str, interval: str, ticker_hist: List[Dict]) -> Tuple[bool, bool]:
@@ -243,7 +264,6 @@ class IStrategy(ABC):
             sl_offset = self.config.get('trailing_stop_positive_offset', 0.0)
 
             if 'trailing_stop_positive' in self.config and current_profit > sl_offset:
-
                 # Ignore mypy error check in configuration that this is a float
                 stop_loss_value = self.config.get('trailing_stop_positive')  # type: ignore
                 logger.debug(f"using positive stop loss mode: {stop_loss_value} "
@@ -322,3 +342,32 @@ class IStrategy(ABC):
             return self.populate_sell_trend(dataframe)  # type: ignore
         else:
             return self.populate_sell_trend(dataframe, metadata)
+
+    def _backtest(self, dataframe: DataFrame, metadata: Dict) -> Dict:
+        """
+        executes a backtest, for the given data
+        :param dataframe:
+        :param medadata:
+        :param mode: which mode we want to utilze for backtesting
+        :return:
+        """
+        logger.info("invoking backtest in strategy for {}".format(metadata))
+        result = DataFrame()
+        if 'pair' in metadata:
+            if self.enable_pre_test() == BacktestMode.BACKSLAP:
+                from freqtrade.optimize.backslapping import Backslapping
+                backslap = Backslapping(self.config)
+                dataframe = dataframe.copy()
+                result = backslap.backslap_pair(dataframe,
+                                                metadata['pair'])
+
+        metadata.update({self.enable_pre_test(): result})
+        return metadata
+
+    def enable_pre_test(self) -> BacktestMode:
+        """
+        if this is enabled, we will backtest the data, before we generated a buy result
+
+        :return: a valid backtest mode
+        """
+        return BacktestMode.NONE

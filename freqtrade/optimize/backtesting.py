@@ -329,7 +329,7 @@ class Backtesting(object):
                     if not trade_count_lock.get(row.date, 0) < max_open_trades:
                         continue
 
-                        trade_count_lock[row.date] = trade_count_lock.get(row.date, 0) + 1
+                    trade_count_lock[row.date] = trade_count_lock.get(row.date, 0) + 1
 
                     trade_entry = self._get_sell_trade_entry(pair, row, ticker[index + 1:],
                                                              trade_count_lock, args)

@@ -14,7 +14,7 @@ class Backslapping:
     provides a quick way to evaluate strategies over a longer term of time
     """
 
-    def __init__(self, config: Dict[str, Any], exchange = None) -> None:
+    def __init__(self, config: Dict[str, Any], exchange=None) -> None:
         """
         constructor
         """
@@ -81,7 +81,7 @@ class Backslapping:
     def f(self, st):
         return (timeit.default_timer() - st)
 
-    def run(self,args):
+    def run(self, args):
 
         headers = ['date', 'buy', 'open', 'close', 'sell', 'high', 'low']
         processed = args['processed']
@@ -93,11 +93,14 @@ class Backslapping:
         ########################### Call out BSlap Loop instead of Original BT code
         bslap_results: list = []
         for pair, pair_data in processed.items():
+            metadata = {'pair':pair}
+
             if self.debug_timing:  # Start timer
                 fl = self.s()
 
             ticker_data = self.populate_sell_trend(
-                self.populate_buy_trend(pair_data))[headers].copy()
+                self.populate_buy_trend(pair_data,metadata),metadata
+            )[headers].copy()
 
             if self.debug_timing:  # print time taken
                 flt = self.f(fl)
@@ -153,7 +156,6 @@ class Backslapping:
         :return: bslap_results Dataframe
         """
         import pandas as pd
-        import numpy as np
         debug = self.debug_vector
 
         # stake and fees
@@ -184,7 +186,8 @@ class Backslapping:
         # bslap_results_df.to_csv(csv, sep='\t', encoding='utf-8')
 
         bslap_results_df['trade_duration'] = bslap_results_df['close_time'] - bslap_results_df['open_time']
-        bslap_results_df['trade_duration'] = bslap_results_df['trade_duration'].map(lambda x: int(x.total_seconds() / 60))
+        bslap_results_df['trade_duration'] = bslap_results_df['trade_duration'].map(
+            lambda x: int(x.total_seconds() / 60))
 
         ## Spends, Takes, Profit, Absolute Profit
         # print(bslap_results_df)
@@ -271,7 +274,6 @@ class Backslapping:
         import numpy as np
         import timeit
         import utils_find_1st as utf1st
-        from datetime import datetime
 
         ### backslap debug wrap
         # debug_2loops = False  # only loop twice, for faster debug
@@ -763,7 +765,7 @@ class Backslapping:
                 bslap_result["open_rate"] = round(np_trade_enter_price, 15)
                 bslap_result["close_rate"] = round(np_trade_exit_price, 15)
                 bslap_result["exit_type"] = t_exit_type
-                bslap_result["sell_reason"] = t_exit_type #duplicated, but I don't care
+                bslap_result["sell_reason"] = t_exit_type  # duplicated, but I don't care
                 # append the dict to the list and print list
                 bslap_pair_results.append(bslap_result)
 
