@@ -199,7 +199,6 @@ class Backtesting(ABC):
             logger.info('Dumping backtest results to %s', recordfilename)
             file_dump_json(recordfilename, records)
 
-    @abstractmethod
     def backtest(self, args: Dict) -> DataFrame:
         """
         Defines backtesting functionality as a Base Classs
@@ -215,6 +214,8 @@ class Backtesting(ABC):
             position_stacking: do we allow position stacking? (default: False)
         :return: DataFrame
         """
+
+
 
     def start(self) -> None:
         """

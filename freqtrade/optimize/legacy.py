@@ -102,7 +102,7 @@ class BacktestingLegacy(Backtesting):
         processed = args['processed']
         max_open_trades = args.get('max_open_trades', 0)
         position_stacking = args.get('position_stacking', False)
-        trades = []
+        trades:list = []
         trade_count_lock: Dict = {}
         for pair, pair_data in processed.items():
             pair_data['buy'], pair_data['sell'] = 0, 0  # cleanup from previous run

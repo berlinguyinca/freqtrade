@@ -60,13 +60,9 @@ class Backslapping(Backtesting):
         self.stop_loss_value = self.strategy.stoploss
         headers = ['date', 'buy', 'open', 'close', 'sell', 'high', 'low']
         processed = args['processed']
-        max_open_trades = args.get('max_open_trades', 0)
-        realistic = args.get('realistic', False)
-        trades = []
-        trade_count_lock: Dict = {}
 
         ########################### Call out BSlap Loop instead of Original BT code
-        bslap_results: list = []
+        trades: list = []
         for pair, pair_data in processed.items():
             metadata = {'pair': pair}
 
@@ -94,8 +90,8 @@ class Backslapping(Backtesting):
 
             # call bslap - results are a list of dicts
             bslap_pair_results = self.backslap_pair(ticker_data, pair)
-            last_bslap_results = bslap_results
-            bslap_results = last_bslap_results + bslap_pair_results
+            last_bslap_results = trades
+            trades = last_bslap_results + bslap_pair_results
 
             if self.debug_timing:  # print time taken
                 tt = self.f(st)
@@ -104,7 +100,7 @@ class Backslapping(Backtesting):
 
         # Switch List of Trade Dicts (bslap_results) to Dataframe
         # Fill missing, calculable columns, profit, duration , abs etc.
-        bslap_results_df = DataFrame(bslap_results)
+        bslap_results_df = DataFrame(trades)
 
         if len(bslap_results_df) > 0:  # Only post process a frame if it has a record
             # bslap_results_df['open_time'] = to_datetime(bslap_results_df['open_time'])
