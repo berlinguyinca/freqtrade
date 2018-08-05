@@ -143,6 +143,16 @@ class Arguments(object):
             dest='refresh_pairs',
         )
         parser.add_argument(
+            '--strategy-list',
+            help='Provide a commaseparated list of strategies to backtest '
+                 'Please note that ticker-interval needs to be set either in config '
+                 'or via command line. When using this together with --export trades, '
+                 'the strategy-name is injected into the filename '
+                 '(so backtest-data.json becomes backtest-data-DefaultStrategy.json',
+            nargs='+',
+            dest='strategy_list',
+        )
+        parser.add_argument(
             '--export',
             help='export backtest results, argument are: trades\
                   Example --export=trades',
@@ -162,12 +172,12 @@ class Arguments(object):
             metavar='PATH',
         )
         parser.add_argument(
-            '--backslap',
-            help="Utilize the Backslapping approach instead of the default Backtesting. This should provide more "
-                 "accurate results, unless you are utilizing Min/Max function in your strategy.",
+            '--mode',
+            help="select the backtesting algorithm",
             required=False,
-            dest='backslap',
-            action='store_true'
+            dest='mode',
+            type=str,
+            default="legacy"
         )
 
     @staticmethod
