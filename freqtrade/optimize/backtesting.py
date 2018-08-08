@@ -23,7 +23,7 @@ from freqtrade.configuration import Configuration
 from freqtrade.exchange import Exchange
 from freqtrade.misc import file_dump_json
 from freqtrade.strategy.resolver import IStrategy, StrategyResolver
-from freqtrade.strategy.interface import SellType
+from freqtrade.strategy.interface import SellType, BacktestMode
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +199,7 @@ class Backtesting(ABC):
             logger.info('Dumping backtest results to %s', recordfilename)
             file_dump_json(recordfilename, records)
 
+    @abstractmethod
     def backtest(self, args: Dict) -> DataFrame:
         """
         Defines backtesting functionality as a Base Classs
@@ -214,8 +215,6 @@ class Backtesting(ABC):
             position_stacking: do we allow position stacking? (default: False)
         :return: DataFrame
         """
-
-
 
     def start(self) -> None:
         """
@@ -336,10 +335,10 @@ def start(args: Namespace) -> None:
     logger.info('Starting freqtrade in Backtesting mode')
 
     # Initialize backtesting object
-    if args.mode == "legacy":
+    if args.mode == BacktestMode.LEGACY.value:
         from freqtrade.optimize.legacy import BacktestingLegacy
         backtesting = BacktestingLegacy(config)
-    elif args.mode == "backslap":
+    elif args.mode == BacktestMode.BACKSLAP.value:
         from freqtrade.optimize.backslapping import Backslapping
         backtesting = Backslapping(config)
 

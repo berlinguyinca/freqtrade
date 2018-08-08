@@ -24,6 +24,7 @@ class BacktestMode(Enum):
     Enum to distinguish between different backtesting modes
     """
     BACKSLAP = "backslap"
+    LEGACY = "legacy"
     NONE = "none"
 
 
