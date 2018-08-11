@@ -155,10 +155,10 @@ class Trade(_DECL_BASE):
     """
     __tablename__ = 'trades'
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True,index=True)
     exchange = Column(String, nullable=False)
-    pair = Column(String, nullable=False)
-    is_open = Column(Boolean, nullable=False, default=True)
+    pair = Column(String, nullable=False, index=True)
+    is_open = Column(Boolean, nullable=False, default=True, index=True)
     fee_open = Column(Float, nullable=False, default=0.0)
     fee_close = Column(Float, nullable=False, default=0.0)
     open_rate = Column(Float)
