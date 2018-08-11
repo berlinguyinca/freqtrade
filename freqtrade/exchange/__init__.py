@@ -2,12 +2,16 @@
 """ Cryptocurrency Exchanges support """
 import logging
 from random import randint
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Tuple, Any, Optional
 from datetime import datetime
 from math import floor, ceil
+import time
 
+import asyncio
 import ccxt
+import ccxt.async_support as ccxt_async
 import arrow
+
 
 from freqtrade import constants, OperationalException, DependencyException, TemporaryError
 
@@ -45,8 +49,15 @@ class Exchange(object):
 
     # Current selected exchange
     _api: ccxt.Exchange = None
+    _api_async: ccxt_async.Exchange = None
     _conf: Dict = {}
     _cached_ticker: Dict[str, Any] = {}
+
+    # Holds last candle refreshed time of each pair
+    _pairs_last_refreshed_time = {}
+
+    # Holds candles
+    _cached_klines: Dict[str, Any] = {}
 
     # Holds all open sell orders for dry_run
     _dry_run_open_orders: Dict[str, Any] = {}
@@ -65,6 +76,7 @@ class Exchange(object):
 
         exchange_config = config['exchange']
         self._api = self._init_ccxt(exchange_config)
+        self._api_async = self._init_ccxt(exchange_config, ccxt_async)
 
         logger.info('Using Exchange "%s"', self.name)
 
@@ -75,7 +87,7 @@ class Exchange(object):
             # Check if timeframe is available
             self.validate_timeframes(config['ticker_interval'])
 
-    def _init_ccxt(self, exchange_config: dict) -> ccxt.Exchange:
+    def _init_ccxt(self, exchange_config: dict, ccxt_module=ccxt) -> ccxt.Exchange:
         """
         Initialize ccxt with given config and return valid
         ccxt instance.
@@ -83,15 +95,15 @@ class Exchange(object):
         # Find matching class for the given exchange name
         name = exchange_config['name']
 
-        if name not in ccxt.exchanges:
+        if name not in ccxt_module.exchanges:
             raise OperationalException(f'Exchange {name} is not supported')
         try:
-            api = getattr(ccxt, name.lower())({
+            api = getattr(ccxt_module, name.lower())({
                 'apiKey': exchange_config.get('key'),
                 'secret': exchange_config.get('secret'),
                 'password': exchange_config.get('password'),
                 'uid': exchange_config.get('uid', ''),
-                'enableRateLimit': exchange_config.get('ccxt_rate_limit', True),
+                'enableRateLimit': exchange_config.get('ccxt_rate_limit', True)
             })
         except (KeyError, AttributeError):
             raise OperationalException(f'Exchange {name} is not supported')
@@ -329,8 +341,55 @@ class Exchange(object):
             logger.info("returning cached ticker-data for %s", pair)
             return self._cached_ticker[pair]
 
+    async def async_get_candles_history(self, pairs, tick_interval) -> List[Tuple[str, List]]:
+        # COMMENTED CODE IS FOR DISCUSSION: where should we close the loop on async ?
+        # loop = asyncio.new_event_loop()
+        # asyncio.set_event_loop(loop)
+        await self._api_async.load_markets()
+        input_coroutines = [self.async_get_candle_history(
+            symbol, tick_interval) for symbol in pairs]
+        tickers = await asyncio.gather(*input_coroutines, return_exceptions=True)
+        # await self._api_async.close()
+        return tickers
+
+    async def async_get_candle_history(self, pair: str, tick_interval: str,
+                                       since_ms: Optional[int] = None) -> Tuple[str, List]:
+        try:
+            # fetch ohlcv asynchronously
+            logger.debug("fetching %s ...", pair)
+
+            # Calculating ticker interval in second
+            interval_in_seconds = constants.TICKER_INTERVAL_MINUTES[tick_interval] * 60
+
+            # If (last update time) + (interval in second) + (1 second) is greater than now
+            # that means we don't have to hit the API as there is no new candle
+            # so we fetch it from local cache
+            if self._pairs_last_refreshed_time.get(pair, 0) + interval_in_seconds + 1 > round(time.time()):
+                data = self._cached_klines[pair]
+            else: 
+                data = await self._api_async.fetch_ohlcv(pair, timeframe=tick_interval, since=since_ms)
+
+            # keeping last candle time as last refreshed time of the pair
+            self._pairs_last_refreshed_time[pair] = data[-1][0] / 1000
+
+            # keeping candles in cache
+            self._cached_klines[pair] = data
+
+            logger.debug("done fetching %s ...", pair)
+            return pair, data
+
+        except ccxt.NotSupported as e:
+            raise OperationalException(
+                f'Exchange {self._api.name} does not support fetching historical candlestick data.'
+                f'Message: {e}')
+        except (ccxt.NetworkError, ccxt.ExchangeError) as e:
+            raise TemporaryError(
+                f'Could not load ticker history due to {e.__class__.__name__}. Message: {e}')
+        except ccxt.BaseError as e:
+            raise OperationalException(f'Could not fetch ticker data. Msg: {e}')
+
     @retrier
-    def get_ticker_history(self, pair: str, tick_interval: str,
+    def get_candle_history(self, pair: str, tick_interval: str,
                            since_ms: Optional[int] = None) -> List[Dict]:
         try:
             # last item should be in the time interval [now - tick_interval, now]

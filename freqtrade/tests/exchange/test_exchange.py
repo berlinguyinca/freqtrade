@@ -27,6 +27,20 @@ def ccxt_exceptionhandlers(mocker, default_conf, api_mock, fun, mock_ccxt_fun, *
     assert api_mock.__dict__[mock_ccxt_fun].call_count == 1
 
 
+async def async_ccxt_exception(mocker, default_conf, api_mock, fun, mock_ccxt_fun, **kwargs):
+    with pytest.raises(TemporaryError):
+        api_mock.__dict__[mock_ccxt_fun] = MagicMock(side_effect=ccxt.NetworkError)
+        exchange = get_patched_exchange(mocker, default_conf, api_mock)
+        await getattr(exchange, fun)(**kwargs)
+    assert api_mock.__dict__[mock_ccxt_fun].call_count == 1
+
+    with pytest.raises(OperationalException):
+        api_mock.__dict__[mock_ccxt_fun] = MagicMock(side_effect=ccxt.BaseError)
+        exchange = get_patched_exchange(mocker, default_conf, api_mock)
+        await getattr(exchange, fun)(**kwargs)
+    assert api_mock.__dict__[mock_ccxt_fun].call_count == 1
+
+
 def test_init(default_conf, mocker, caplog):
     caplog.set_level(logging.INFO)
     get_patched_exchange(mocker, default_conf)
@@ -515,6 +529,92 @@ def test_get_ticker(default_conf, mocker):
     exchange.get_ticker(pair='ETH/BTC', refresh=True)
 
 
+@pytest.mark.asyncio
+async def test_async_get_candle_history(default_conf, mocker):
+    tick = [
+        [
+            1511686200000,  # unix timestamp ms
+            1,  # open
+            2,  # high
+            3,  # low
+            4,  # close
+            5,  # volume (in quote currency)
+        ]
+    ]
+
+    async def async_fetch_ohlcv(pair, timeframe, since):
+        return tick
+
+    exchange = get_patched_exchange(mocker, default_conf)
+    # Monkey-patch async function
+    exchange._api_async.fetch_ohlcv = async_fetch_ohlcv
+
+    exchange = Exchange(default_conf)
+    pair = 'ETH/BTC'
+    res = await exchange.async_get_candle_history(pair, "5m")
+    assert type(res) is tuple
+    assert len(res) == 2
+    assert res[0] == pair
+    assert res[1] == tick
+
+    await async_ccxt_exception(mocker, default_conf, MagicMock(),
+                               "async_get_candle_history", "fetch_ohlcv",
+                               pair='ABCD/BTC', tick_interval=default_conf['ticker_interval'])
+
+    api_mock = MagicMock()
+    with pytest.raises(OperationalException, match=r'Could not fetch ticker data*'):
+        api_mock.fetch_ohlcv = MagicMock(side_effect=ccxt.BaseError)
+        exchange = get_patched_exchange(mocker, default_conf, api_mock)
+        await exchange.async_get_candle_history(pair, "5m")
+
+
+@pytest.mark.asyncio
+async def test_async_get_candles_history(default_conf, mocker):
+    tick = [
+        [
+            1511686200000,  # unix timestamp ms
+            1,  # open
+            2,  # high
+            3,  # low
+            4,  # close
+            5,  # volume (in quote currency)
+        ]
+    ]
+
+    async def async_fetch_ohlcv(pair, timeframe, since):
+        return tick
+
+    exchange = get_patched_exchange(mocker, default_conf)
+    # Monkey-patch async function
+    exchange._api_async.fetch_ohlcv = async_fetch_ohlcv
+
+    exchange = Exchange(default_conf)
+    pairs = ['ETH/BTC', 'XRP/BTC']
+    res = await exchange.async_get_candles_history(pairs, "5m")
+    assert type(res) is list
+    assert len(res) == 2
+    assert type(res[0]) is tuple
+    assert res[0][0] == pairs[0]
+    assert res[0][1] == tick
+    assert res[1][0] == pairs[1]
+    assert res[1][1] == tick
+
+    # await async_ccxt_exception(mocker, default_conf, MagicMock(),
+    #                            "async_get_candles_history", "fetch_ohlcv",
+    #                            pairs=pairs, tick_interval=default_conf['ticker_interval'])
+
+    # api_mock = MagicMock()
+    # with pytest.raises(OperationalException, match=r'Could not fetch ticker data*'):
+    #     api_mock.fetch_ohlcv = MagicMock(side_effect=ccxt.BaseError)
+    #     exchange = get_patched_exchange(mocker, default_conf, api_mock)
+    #     await exchange.async_get_candles_history('ETH/BTC', "5m")
+
+
+def test_refresh_tickers():
+    # TODO: Implement test for this
+    pass
+
+
 def make_fetch_ohlcv_mock(data):
     def fetch_ohlcv_mock(pair, timeframe, since):
         if since:
@@ -524,7 +624,7 @@ def make_fetch_ohlcv_mock(data):
     return fetch_ohlcv_mock
 
 
-def test_get_ticker_history(default_conf, mocker):
+def test_get_candle_history(default_conf, mocker):
     api_mock = MagicMock()
     tick = [
         [
@@ -541,7 +641,7 @@ def test_get_ticker_history(default_conf, mocker):
     exchange = get_patched_exchange(mocker, default_conf, api_mock)
 
     # retrieve original ticker
-    ticks = exchange.get_ticker_history('ETH/BTC', default_conf['ticker_interval'])
+    ticks = exchange.get_candle_history('ETH/BTC', default_conf['ticker_interval'])
     assert ticks[0][0] == 1511686200000
     assert ticks[0][1] == 1
     assert ticks[0][2] == 2
@@ -563,7 +663,7 @@ def test_get_ticker_history(default_conf, mocker):
     api_mock.fetch_ohlcv = MagicMock(side_effect=make_fetch_ohlcv_mock(new_tick))
     exchange = get_patched_exchange(mocker, default_conf, api_mock)
 
-    ticks = exchange.get_ticker_history('ETH/BTC', default_conf['ticker_interval'])
+    ticks = exchange.get_candle_history('ETH/BTC', default_conf['ticker_interval'])
     assert ticks[0][0] == 1511686210000
     assert ticks[0][1] == 6
     assert ticks[0][2] == 7
@@ -572,16 +672,16 @@ def test_get_ticker_history(default_conf, mocker):
     assert ticks[0][5] == 10
 
     ccxt_exceptionhandlers(mocker, default_conf, api_mock,
-                           "get_ticker_history", "fetch_ohlcv",
+                           "get_candle_history", "fetch_ohlcv",
                            pair='ABCD/BTC', tick_interval=default_conf['ticker_interval'])
 
     with pytest.raises(OperationalException, match=r'Exchange .* does not support.*'):
         api_mock.fetch_ohlcv = MagicMock(side_effect=ccxt.NotSupported)
         exchange = get_patched_exchange(mocker, default_conf, api_mock)
-        exchange.get_ticker_history(pair='ABCD/BTC', tick_interval=default_conf['ticker_interval'])
+        exchange.get_candle_history(pair='ABCD/BTC', tick_interval=default_conf['ticker_interval'])
 
 
-def test_get_ticker_history_sort(default_conf, mocker):
+def test_get_candle_history_sort(default_conf, mocker):
     api_mock = MagicMock()
 
     # GDAX use-case (real data from GDAX)
@@ -604,7 +704,7 @@ def test_get_ticker_history_sort(default_conf, mocker):
     exchange = get_patched_exchange(mocker, default_conf, api_mock)
 
     # Test the ticker history sort
-    ticks = exchange.get_ticker_history('ETH/BTC', default_conf['ticker_interval'])
+    ticks = exchange.get_candle_history('ETH/BTC', default_conf['ticker_interval'])
     assert ticks[0][0] == 1527830400000
     assert ticks[0][1] == 0.07649
     assert ticks[0][2] == 0.07651
@@ -637,7 +737,7 @@ def test_get_ticker_history_sort(default_conf, mocker):
     api_mock.fetch_ohlcv = MagicMock(side_effect=make_fetch_ohlcv_mock(tick))
     exchange = get_patched_exchange(mocker, default_conf, api_mock)
     # Test the ticker history sort
-    ticks = exchange.get_ticker_history('ETH/BTC', default_conf['ticker_interval'])
+    ticks = exchange.get_candle_history('ETH/BTC', default_conf['ticker_interval'])
     assert ticks[0][0] == 1527827700000
     assert ticks[0][1] == 0.07659999
     assert ticks[0][2] == 0.0766
