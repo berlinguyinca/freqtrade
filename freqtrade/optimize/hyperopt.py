@@ -24,7 +24,7 @@ import freqtrade.vendor.qtpylib.indicators as qtpylib
 from freqtrade.arguments import Arguments
 from freqtrade.configuration import Configuration
 from freqtrade.optimize import load_data
-from freqtrade.optimize.backtesting import Backtesting
+from freqtrade.optimize.legacy import BacktestingLegacy
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ MAX_LOSS = 100000  # just a big enough number to be bad result in loss optimizat
 TICKERDATA_PICKLE = os.path.join('user_data', 'hyperopt_tickerdata.pkl')
 
 
-class Hyperopt(Backtesting):
+class Hyperopt(BacktestingLegacy):
     """
     Hyperopt class, this class contains all the logic to run a hyperopt simulation
 

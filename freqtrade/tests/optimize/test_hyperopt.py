@@ -9,7 +9,7 @@ from freqtrade.optimize.__init__ import load_tickerdata_file
 from freqtrade.optimize.hyperopt import Hyperopt, start
 from freqtrade.strategy.resolver import StrategyResolver
 from freqtrade.tests.conftest import log_has, patch_exchange
-from freqtrade.tests.optimize.test_backtesting import get_args
+from freqtrade.tests.optimize.test_legacy_backtesting import get_args
 
 
 @pytest.fixture(scope='function')

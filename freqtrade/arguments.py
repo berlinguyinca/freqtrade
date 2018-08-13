@@ -172,12 +172,12 @@ class Arguments(object):
             metavar='PATH',
         )
         parser.add_argument(
-            '--backslap',
-            help="Utilize the Backslapping approach instead of the default Backtesting. This should provide more "
-                 "accurate results, unless you are utilizing Min/Max function in your strategy.",
+            '--mode',
+            help="select the backtesting algorithm",
             required=False,
-            dest='backslap',
-            action='store_true'
+            dest='mode',
+            type=str,
+            default="legacy"
         )
 
     @staticmethod

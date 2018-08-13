@@ -3,44 +3,16 @@ from typing import Dict, Any
 
 from pandas import DataFrame
 
-from freqtrade.exchange import Exchange
-from freqtrade.strategy import IStrategy
+from freqtrade.optimize.backtesting import Backtesting
 from freqtrade.strategy.interface import SellType
-from freqtrade.strategy.resolver import StrategyResolver
 
 
-class Backslapping:
+class Backslapping(Backtesting):
     """
     provides a quick way to evaluate strategies over a longer term of time
     """
 
-    def __init__(self, config: Dict[str, Any], exchange = None) -> None:
-        """
-        constructor
-        """
-
-        self.config = config
-        self.strategy: IStrategy = StrategyResolver(self.config).strategy
-        self.ticker_interval = self.strategy.ticker_interval
-        self.tickerdata_to_dataframe = self.strategy.tickerdata_to_dataframe
-        self.populate_buy_trend = self.strategy.populate_buy_trend
-        self.populate_sell_trend = self.strategy.populate_sell_trend
-
-        ###
-        #
-        ###
-        if exchange is None:
-            self.config['exchange']['secret'] = ''
-            self.config['exchange']['password'] = ''
-            self.config['exchange']['uid'] = ''
-            self.config['dry_run'] = True
-            self.exchange = Exchange(self.config)
-        else:
-            self.exchange = exchange
-
-        self.fee = self.exchange.get_fee()
-
-        self.stop_loss_value = self.strategy.stoploss
+    def __init__(self, config: Dict[str, Any]) -> None:
 
         #### backslap config
         '''
@@ -49,6 +21,7 @@ class Backslapping:
         buy stop triggers and stop calculated on
         # buy 0 - open 1 - close 2 - sell 3 - high 4 - low 5 - stop 6
         '''
+        super().__init__(config)
         self.np_buy: int = 0
         self.np_open: int = 1
         self.np_close: int = 2
@@ -73,6 +46,7 @@ class Backslapping:
         self.backslap_save_trades = True  # saves trades as a pretty table to backslap.txt
 
         self.stop_stops: int = 9999  # stop back testing any pair with this many stops, set to 999999 to not hit
+        self.stop_loss_value = 0
 
     def s(self):
         st = timeit.default_timer()
@@ -81,23 +55,27 @@ class Backslapping:
     def f(self, st):
         return (timeit.default_timer() - st)
 
-    def run(self,args):
+    def backtest(self, args: Dict) -> DataFrame:
 
+        self.stop_loss_value = self.strategy.stoploss
         headers = ['date', 'buy', 'open', 'close', 'sell', 'high', 'low']
         processed = args['processed']
-        max_open_trades = args.get('max_open_trades', 0)
-        realistic = args.get('realistic', False)
-        trades = []
-        trade_count_lock: Dict = {}
 
         ########################### Call out BSlap Loop instead of Original BT code
-        bslap_results: list = []
+        trades: list = []
         for pair, pair_data in processed.items():
+            metadata = {'pair': pair}
+
             if self.debug_timing:  # Start timer
                 fl = self.s()
 
-            ticker_data = self.populate_sell_trend(
-                self.populate_buy_trend(pair_data))[headers].copy()
+            ticker_data = self.strategy.populate_sell_trend(
+                self.strategy.populate_buy_trend(pair_data, metadata), metadata
+            )
+
+            metadata = self.strategy._backtest(ticker_data, metadata)
+            ticker_data = self.strategy.confirm_buy(ticker_data, metadata)
+            [headers].copy()
 
             if self.debug_timing:  # print time taken
                 flt = self.f(fl)
@@ -112,8 +90,8 @@ class Backslapping:
 
             # call bslap - results are a list of dicts
             bslap_pair_results = self.backslap_pair(ticker_data, pair)
-            last_bslap_results = bslap_results
-            bslap_results = last_bslap_results + bslap_pair_results
+            last_bslap_results = trades
+            trades = last_bslap_results + bslap_pair_results
 
             if self.debug_timing:  # print time taken
                 tt = self.f(st)
@@ -122,7 +100,7 @@ class Backslapping:
 
         # Switch List of Trade Dicts (bslap_results) to Dataframe
         # Fill missing, calculable columns, profit, duration , abs etc.
-        bslap_results_df = DataFrame(bslap_results)
+        bslap_results_df = DataFrame(trades)
 
         if len(bslap_results_df) > 0:  # Only post process a frame if it has a record
             # bslap_results_df['open_time'] = to_datetime(bslap_results_df['open_time'])
@@ -153,7 +131,6 @@ class Backslapping:
         :return: bslap_results Dataframe
         """
         import pandas as pd
-        import numpy as np
         debug = self.debug_vector
 
         # stake and fees
@@ -184,7 +161,8 @@ class Backslapping:
         # bslap_results_df.to_csv(csv, sep='\t', encoding='utf-8')
 
         bslap_results_df['trade_duration'] = bslap_results_df['close_time'] - bslap_results_df['open_time']
-        bslap_results_df['trade_duration'] = bslap_results_df['trade_duration'].map(lambda x: int(x.total_seconds() / 60))
+        bslap_results_df['trade_duration'] = bslap_results_df['trade_duration'].map(
+            lambda x: int(x.total_seconds() / 60))
 
         ## Spends, Takes, Profit, Absolute Profit
         # print(bslap_results_df)
@@ -271,7 +249,6 @@ class Backslapping:
         import numpy as np
         import timeit
         import utils_find_1st as utf1st
-        from datetime import datetime
 
         ### backslap debug wrap
         # debug_2loops = False  # only loop twice, for faster debug
@@ -582,7 +559,7 @@ class Backslapping:
                 elif np_t_sell_ind < 99999999 and np_t_sell_ind < np_t_stop_ind:
                     # move sell onto next candle, we only look back on sell
                     # will use the open price later.
-                    t_exit_ind = t_open_ind + np_t_sell_ind + 1  # Set Exit row index
+                    t_exit_ind = t_open_ind + np_t_sell_ind   # Set Exit row index
                     t_exit_type = SellType.SELL_SIGNAL  # Set Exit type (sell)
                     np_t_exit_pri = np_open  # The price field our SELL exit will use
                     if debug:
@@ -763,7 +740,7 @@ class Backslapping:
                 bslap_result["open_rate"] = round(np_trade_enter_price, 15)
                 bslap_result["close_rate"] = round(np_trade_exit_price, 15)
                 bslap_result["exit_type"] = t_exit_type
-                bslap_result["sell_reason"] = t_exit_type #duplicated, but I don't care
+                bslap_result["sell_reason"] = t_exit_type  # duplicated, but I don't care
                 # append the dict to the list and print list
                 bslap_pair_results.append(bslap_result)
 
