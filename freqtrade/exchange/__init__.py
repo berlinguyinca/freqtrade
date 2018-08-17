@@ -218,7 +218,7 @@ class Exchange(object):
             amount = self.symbol_amount_prec(pair, amount)
             rate = self.symbol_price_prec(pair, rate)
 
-            return self._api.create_limit_buy_order(pair, amount, rate)
+            return self._api.create_market_buy_order(pair, amount, rate)
         except ccxt.InsufficientFunds as e:
             raise DependencyException(
                 f'Insufficient funds to create limit buy order on market {pair}.'
@@ -255,7 +255,7 @@ class Exchange(object):
             amount = self.symbol_amount_prec(pair, amount)
             rate = self.symbol_price_prec(pair, rate)
 
-            return self._api.create_limit_sell_order(pair, amount, rate)
+            return self._api.create_market_sell_order(pair, amount, rate)
         except ccxt.InsufficientFunds as e:
             raise DependencyException(
                 f'Insufficient funds to create limit sell order on market {pair}.'
